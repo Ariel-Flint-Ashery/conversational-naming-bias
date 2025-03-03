@@ -50,14 +50,12 @@ if not quantized:
     model = AutoModelForCausalLM.from_pretrained(model_name, resume_download = True,token=config.model.API_TOKEN, cache_dir = '/mnt/shared_drive/llm_garage/cache/huggingface')#, local_files_only = True)
     model = model.to('cuda')
     model.config.use_cache = False
-    #pipeline = transformers.pipeline('text-generation', model=model, tokenizer=tokenizer, torch_dtype=torch.float16, device_map="auto")
 else:
     # quantized version
     print('Loading quantized model', flush=True)
     bnb_config = transformers.BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type='nf4', bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=bfloat16)
     model = AutoModelForCausalLM.from_pretrained(model_name, resume_download = True, device_map='cuda:0', quantization_config=bnb_config, cache_dir = '/mnt/shared_drive/llm_garage/cache/huggingface')#, local_files_only = True)
     model.config.use_cache = False
-    #pipeline = transformers.pipeline('text-generation', model=model, tokenizer=tokenizer, device_map="auto")
 
 def query(text, temperature = config.params.temperature, max_new_tokens = 6):
     if config.model.chat_template_is_avail:
@@ -76,7 +74,6 @@ def query(text, temperature = config.params.temperature, max_new_tokens = 6):
     prompt_length = inputs.shape[1]
     generated_text = tokenizer.decode(generated_tokens[prompt_length:], skip_special_tokens=True)
     #print(f'{generated_text}', flush = True)
-    time.sleep(5)
     return {'generated_text': generated_text}#, 'generated_tokens': generated_tokens, 'outputs': outputs}
 
 def get_response(chat, options):
@@ -95,7 +92,6 @@ def get_response(chat, options):
             index = response_split.index(opt)
         except:
             continue
-    #print(response_split[index])
     return response_split[index]
 
 def get_meta_response(chat):
@@ -128,19 +124,18 @@ def get_probability_dict(options, prompt, first_target_id_dict, temperature = co
         inputs = tokenizer.apply_chat_template(prompt, return_tensors="pt", add_generation_prompt=True).to("cuda:0")
     else:
         inputs = tokenizer.encode(prompt, return_tensors = "pt").to("cuda:0")
-        #inputs = tokenizer(prompt, return_tensors = "pt").to("cuda:0")
-    #print(inputs)
+        #inputs = tokenizer(prompt, return_tensors = "pt").to("cuda:0") #returns different inputs structure, , where model input is inputs['input_ids']
+
     with torch.no_grad():
         if temperature == 0:
             outputs = model.generate(inputs, max_new_tokens = 5,output_scores=True, return_dict_in_generate=True, output_hidden_states=True, do_sample = False, pad_token_id=tokenizer.eos_token_id)
         else:
             outputs = model.generate(inputs, max_new_tokens = 5,output_scores=True, return_dict_in_generate=True, output_hidden_states=True, do_sample = True, temperature = temperature, top_k = len(options), pad_token_id=tokenizer.eos_token_id)
     
-    generated_tokens = outputs.sequences[0]
-    #prompt_length = inputs['input_ids'].shape[1]
-    generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-    #print(generated_text[len(prompt):])
-    #time.sleep(1)
+    #generated_tokens = outputs.sequences[0]
+    #generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+    #print(generated_text)
+
     first_target_encoding = [first_target_id_dict[option] for option in options]
     probability_dict = {opt: -np.inf for opt in options}
     options_log_probs = []
@@ -151,11 +146,7 @@ def get_probability_dict(options, prompt, first_target_id_dict, temperature = co
         logits = outputs.scores[0]
         probabilities = torch.log_softmax(logits, dim=-1)
         target_log_prob = probabilities[0, choice].item()
-        #print(f"log probability of {tokenizer.decode(target_id)}: {target_prob}")
-        #print(f"probability of {choice} under shuffle {new_options} is : {np.exp(target_log_prob)}")
         if np.exp(target_log_prob) < epsilon:
-            #raise(ValueError('CHOICE WOUD NOT BE GENERATED'))
-            #print("GREEDY CHOICE")
             target_log_prob = -np.inf
         
         options_log_probs.append(target_log_prob)

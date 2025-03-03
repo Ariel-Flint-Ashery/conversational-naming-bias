@@ -20,7 +20,6 @@ alpha = config.network.alpha
 beta = config.network.beta
 erdos_p = config.network.erdos_p
 N = config.params.N
-initial = config.params.initial
 temperature = config.params.temperature
 #%%
   
@@ -114,7 +113,7 @@ def get_empty_population(fname):
   print("My history: ", dataframe['simulation'][1]['my_history'])
   return dataframe
 
-def set_initial_state(network_dict, rewards, options, memory_size):
+def set_initial_state(network_dict, rewards, options, memory_size, initial):
   if initial == 'None':
     pass
   if initial == 'random':
@@ -130,6 +129,15 @@ def set_initial_state(network_dict, rewards, options, memory_size):
           partner_choice = options[random.choice(range(len([0,1])))]
           update_dict(network_dict[p], my_choice, partner_choice, get_outcome(my_answer=my_choice, partner_answer=partner_choice, rewards = rewards))
 
+  if type(initial) == float:
+    N = len(network_dict.keys())
+    ratio = int(initial*N)
+    all_options = [options[0]]*(N-ratio) + [options[1]]*ratio
+    random.shuffle(all_options)
+    for p in network_dict.keys(): 
+      network_dict[p]['first_choice'] = all_options[p-1]
+    first_choices = [network_dict[p]['first_choice'] for p in network_dict.keys()]
+    print("PREPARED FIRST CHOICES FOR ENTIRE POPULATION: ", first_choices)
 
   if type(initial) == int:
     for m in range(memory_size):
@@ -140,34 +148,18 @@ def set_initial_state(network_dict, rewards, options, memory_size):
           a = False
 
         if a == False:         
-          update_dict(network_dict[p], options[initial], options[initial], rewards[1])
-
-def test_if_initialisation_worked(dataframe, memory_size, options):
-    counter = 0
-    for player in dataframe['simulation'].keys():
-        my_ans = dataframe['simulation'][player]['my_history'][:memory_size]
-        # partner_ans = dataframe['simulation'][player]['partner_history'][:memory_size]
-        # score = dataframe['simulation'][player]['outcome'][:memory_size]
-        if my_ans.count(options[initial]) == memory_size:
-            counter +=1
-    #print(counter)
-    if counter == N:
-        return True
-    else:
-        raise ValueError("prepared initialisation failed")
+          update_dict(network_dict[p], options[initial], options[initial], get_outcome(my_answer=options[initial], partner_answer=options[initial], rewards = rewards))
     
-def get_prepared_population(fname, rewards, options, minority_size, memory_size):
+def get_prepared_population(fname, rewards, options, minority_size, memory_size, initial):
     try:
         return pickle.load(open(fname, 'rb'))
     except:
         dataframe = {'simulation': get_interaction_network(network_type = network_type, minority_size=minority_size), 'tracker': {'players': [], 'answers': [], 'outcome': []}}
     print("---------- CREATING NEW INITIALISED DATAFRAME ----------")
-    set_initial_state(dataframe['simulation'], rewards, options, memory_size)
+    set_initial_state(dataframe['simulation'], rewards, options, memory_size, initial = initial)
     dataframe['convergence'] = {'converged_index': 0, 'committed_to': options[1]}
     
-    #print(dataframe[0]['simulation'][1]['my_history'])
-    test_if_initialisation_worked(dataframe, memory_size, options)
-
+    print("PREPARED PERSONAL HISTORY FOR POPULATION MEMBER 1: ", dataframe['simulation'][1]['my_history'], dataframe['simulation'][1]['partner_history'])
     return dataframe
 
 def swap_committed(df, minority_size):

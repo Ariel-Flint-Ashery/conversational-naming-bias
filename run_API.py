@@ -126,7 +126,7 @@ def get_meta_response(chat):
         
         
         elif len(response.message.content.split(";")) < 2:
-            print(f"RESPONSE SPLIT: {response.message.content.split(";")}")
+            print(f"RESPONSE SPLIT: {response.message.content.split(';')}")
             overloaded = 1
         # if 'value' in response['generated_text']:
         #     overloaded=0

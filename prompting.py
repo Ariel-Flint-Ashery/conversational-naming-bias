@@ -5,16 +5,27 @@ with open("config.yaml", "r") as f:
     doc = yaml.safe_load(f)
 config = munchify(doc)
 
-def get_rules(rewards, options, topic):
+def get_rules(rewards, options, topic=None):
   incorrect, correct = rewards
-  rule_set = f"""
-  Context: Player 1 is playing a multi-round partnership game with Player 2 for 100 rounds.
-  At each round, Player 1 and Player 2 simultaneously pick an action from the values {options} to fill in the BLANK in the following sentence: {topic}.
-  The payoff that both players get is determined by the following rule:
-  1. If Players play the SAME action as each other, they will both be REWARDED with payoff +{correct} points.
-  2. If Players play DIFFERENT actions to each other, they will both be PUNISHED with payoff {incorrect} points.
-  The objective of each Player is to maximize their own accumulated point tally, conditional on the behavior of the other player.
-  """ 
+  
+  if topic != None:
+    rule_set = f"""
+    Context: Player 1 is playing a multi-round partnership game with Player 2 for 100 rounds.
+    At each round, Player 1 and Player 2 simultaneously pick an action from the values {options} to fill in the BLANK in the following sentence: {topic}.
+    The payoff that both players get is determined by the following rule:
+    1. If Players play the SAME action as each other, they will both be REWARDED with payoff +{correct} points.
+    2. If Players play DIFFERENT actions to each other, they will both be PUNISHED with payoff {incorrect} points.
+    The objective of each Player is to maximize their own accumulated point tally, conditional on the behavior of the other player.
+    """ 
+  else:
+    rule_set = f"""
+    Context: Player 1 is playing a multi-round partnership game with Player 2 for 100 rounds.
+    At each round, Player 1 and Player 2 simultaneously pick an action from the values {options}.
+    The payoff that both players get is determined by the following rule:
+    1. If Players play the SAME action as each other, they will both be REWARDED with payoff +{correct} points.
+    2. If Players play DIFFERENT actions to each other, they will both be PUNISHED with payoff {incorrect} points.
+    The objective of each Player is to maximize their own accumulated point tally, conditional on the behavior of the other player.
+    """ 
   return rule_set
 
 def get_system_prompt(player, memory_size, rules):
@@ -49,13 +60,24 @@ def get_system_prompt(player, memory_size, rules):
   return prompt
 
 def get_prompt(player, memory_size, rules, question = "Answer saying which action Player 1 should play."):
-  #assistant_prompt = {"role": "assistant", "content": "{'value': "}
+  #assistant response structure should look like: {"role": "assistant", "content": "{'value': "}
+
+  if question == "Answer saying which action Player 1 should play.":
+    assistant_text =  "\n\n{'value': '"
+  else:
+    assistant_text =  "\n\n{'value': "
+
+  if config.model.chat_template_is_avail == False:
+    return """ \n""".join([get_system_prompt(player, memory_size, rules), question, assistant_text])
+
+  assistant_prompt = {"role": "assistant", "content": assistant_text}
   if config.model.sys_prompt_is_avail:
     system_prompt = {'role': "system", "content": get_system_prompt(player, memory_size, rules)}
     user_prompt = {"role": "user", "content": question}
-    return [system_prompt, user_prompt]#, assistant_prompt]
+    return [system_prompt, user_prompt, assistant_prompt]
   else:
-    return [{"role": "user", "content":  """\n """.join([get_system_prompt(player, memory_size, rules), question])}]
+    return [{"role": "user", "content":  """\n """.join([get_system_prompt(player, memory_size, rules), question, assistant_text])}]
+
 
 # def get_meta_prompt(player, rules, question):
 #     # add initial round

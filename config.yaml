@@ -10,23 +10,25 @@ minority:
 params:
   temperature: 0.5
   runs: 6
-  total_interactions: 5000 #only used for committed runs
+  total_interactions: 5000 
   N: 24
-  initial_composition: 0.95
-  initial: 'None'
+  initial_set: ['None', 0.5, 0, 1]
   convergence_time: 72
   convergence_threshold: 0.95
   rewards_set: [[-50, 100]]
   memory_size_set: [5]
-  options_set: 'stereo' #[['A', 'B']]
+  options_set: 'stereo' # 'antistereo'
 sim:
   version: 'swap'
+  fill_blank: True
   continue_evolution: False
+  consensus_evolution: False
   stochastic: True
   mode: 'api' #'gpu'
 model:
-  model_name: "meta-llama/Llama-3.1-70B-Instruct" 
-  shorthand: "llama31_70B" #"mistral_8x7B" # "llama32_3B" #"gemma2_2b" #
-  API_TOKEN: #''
+  model_name: "meta-llama/Llama-3.3-70B-Instruct" 
+  shorthand: "llama33_70B" 
+  API_TOKEN: ''
   sys_prompt_is_avail: True
-  quantized: False
+  chat_template_is_avail: True
+  quantized: True
