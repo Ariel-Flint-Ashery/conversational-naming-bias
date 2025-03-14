@@ -59,7 +59,7 @@ else:
 
 def query(text, temperature = config.params.temperature, max_new_tokens = 6):
     if config.model.chat_template_is_avail:
-        inputs = tokenizer.apply_chat_template(text, return_tensors="pt", add_generation_prompt=True).to("cuda:0")
+        inputs = tokenizer.apply_chat_template(text, return_tensors="pt", continue_final_message=True).to("cuda:0")
     else:
         #inputs = tokenizer(text, return_tensors = "pt").to("cuda:0")
         inputs = tokenizer.encode(text, return_tensors = "pt").to("cuda:0")
