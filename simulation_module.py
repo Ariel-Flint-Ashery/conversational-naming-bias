@@ -166,7 +166,8 @@ def population(dataframe, run, memory_size, rewards, options, fname, topic, init
 
 #%% COMMITTED MINORITY
 
-def committed(dataframe, run, memory_size, rewards, options, fname, topic, initial, total_interactions = total_interactions):
+def committed(dataframe, run, memory_size, rewards, options, fname, topic, initial,
+              total_interactions = total_interactions):
     options_id = extract_options_id(fname)
     new_options = options.copy()
     interaction_dict = dataframe['simulation']

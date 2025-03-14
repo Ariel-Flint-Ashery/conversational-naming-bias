@@ -21,6 +21,9 @@ beta = config.network.beta
 erdos_p = config.network.erdos_p
 N = config.params.N
 temperature = config.params.temperature
+clique_1 = config.params.clique1
+clique_2 = config.params.clique2
+crossover_p = config.params.crossover_probability
 #%%
   
 def get_interaction_network(network_type, minority_size, network_dict = None, degree=degree, alpha = alpha, beta = beta, erdos_p = erdos_p):
@@ -56,6 +59,87 @@ def get_interaction_network(network_type, minority_size, network_dict = None, de
     for id in committed_ids:
       network_dict[id]['committed_tag'] = True
   return network_dict
+
+# TODO: This creates a fresh network
+def get_biclique_interaction(G1: list,
+                              G2: list,
+                              is_complete: bool = True,
+                              crossover_p: float = 0,
+                              internal_p: float = 0,
+                              return_adj: bool = False) -> dict or tuple[dict, np.ndarray]:
+
+    """
+    Creates an undirected network comprised of two initially distinct parts. Each is well internally-connected (default
+    is a clique), but completely disconnected from each other. Connections between the two are drawn with probability
+    crossover_p.
+
+    :param G1: List of nodes in first part
+    :param G2: List of nodes in second part
+    :param is_complete: Boolean for whether each part is a clique (fully connected)
+    :param crossover_p: Probability of edge between parts
+    :param internal_p: If is_complete=False, connection probability for ER graph in each part
+    :param return_adj: Boolean for whether to return adjacency matrix
+    :return: Initialized dictionary of nodes and (optional) adjacency matrix
+    """
+
+    # complete adjacency matrices for both parts
+    A1 = np.ones((len(G1), len(G1)), dtype=bool) - np.eye(len(G1))
+    A2 = np.ones((len(G2), len(G2)), dtype=bool) - np.eye(len(G2))
+
+    if is_complete:
+        pass
+    else:
+        # ER with G(n,p) -> G(len(G1, internal_p)) adjacency matrix
+        rand1 = np.random.rand(len(G1), len(G1))
+        rand2 = np.random.rand(len(G2), len(G2))
+
+        A1 = A1 * (rand1 < internal_p)
+        A2 = A2 * (rand2 < internal_p)
+
+    # combining the blocks with interconnections of prob. p
+    A12 = (np.random.rand(len(G1), len(G2)) < crossover_p)*1
+    A21 = (np.random.rand(len(G2), len(G1)) < crossover_p)*1
+
+    A = np.block([[A1, A12],
+                  [A2, A21]])
+
+    # converting adjacency to network dict -- ASSUMING NODES ARE 0-indexed
+    all_nodes = G1 + G2
+    network_dict = {
+        n: {'neighbours': list(np.where(A[n] > 0)[0]), 'my_history': [], 'partner_history': [], 'interactions': [], 'score': 0,
+            'score_history': [], 'outcome': [], 'committed_tag': False} for n in all_nodes}
+
+    if return_adj:
+        return A, network_dict
+    else:
+        return network_dict
+
+# TODO: This rewires an existing network
+def add_crossing_edges(G1: list,
+                       G2: list,
+                       network_dict: dict,
+                       crossing_p: float) -> dict:
+
+    '''
+    Adds bridging edges to an existing biclique network by randomly adding an edge between
+    each pair of nodes in the two parts with probability crossing_p
+    :param G1: List of nodes in first part
+    :param G2: List of nodes in second part
+    :param network_dict: dictionary of nodes, structured as seen in get_biclique_interaction()
+    :param crossing_p: probability of new edge between parts
+    :return: updated network_dict
+    '''
+
+    all_pairs = np.array(list(product(G1, G2)))
+    rand_mask = np.random.rand(all_pairs.shape[0]) < crossing_p
+
+    new_edges = all_pairs[rand_mask]
+
+    for n,m in new_edges:
+        network_dict[n]['neighbours'].append(m)
+        network_dict[m]['neighbours'].append(n)
+
+    return network_dict
 
 def load_mainframe(fname):
     try:
@@ -113,6 +197,30 @@ def get_empty_population(fname):
   print("My history: ", dataframe['simulation'][1]['my_history'])
   return dataframe
 
+# TODO: Copy get_empty_population with new code here
+def get_empty_population_biclique(fname: str,
+                                  G1: list = clique_1,
+                                  G2: list = clique_2):
+
+    """
+    Initializes an empty population using the get_biclique_interactions() method to get neighbors and empty state dicts
+    :param fname: filename for exiting state dicts
+    :param G1: (Optional) List of nodes in clique 1
+    :param G2: (Optional) List of nodes in clique 2
+
+    :return: Initialized dataframe
+    """
+    try:
+        dataframe = pickle.load(open(fname, 'rb'))
+
+    except FileNotFoundError:
+        dataframe = {'simulation': get_biclique_interaction(G1=G1, G2=G2, crossover_p=crossover_p),
+                     'tracker': {'players': [], 'answers': [], 'outcome': []}}
+
+    print("My history: ", dataframe['simulation'][1]['my_history'])
+    return dataframe
+
+
 def set_initial_state(network_dict, rewards, options, memory_size, initial):
   if initial == 'None':
     pass
@@ -161,6 +269,24 @@ def get_prepared_population(fname, rewards, options, minority_size, memory_size,
     
     print("PREPARED PERSONAL HISTORY FOR POPULATION MEMBER 1: ", dataframe['simulation'][1]['my_history'], dataframe['simulation'][1]['partner_history'])
     return dataframe
+
+def get_prepared_population_biclique(fname: str,
+                                     rewards,
+                                     options,
+                                     memory_size,
+                                     initial):
+    try:
+        return pickle.load(open(fname, 'rb'))
+    except FileNotFoundError:
+        dataframe = {'simulation': get_biclique_interaction(G1=clique_1, G2=clique_2, crossover_p=crossover_p),
+                     'tracker': {'players': [], 'answers': [], 'outcome': []}}
+    print("---------- CREATING NEW INITIALISED DATAFRAME ----------")
+    set_initial_state(dataframe['simulation'], rewards, options, memory_size, initial=initial)
+    dataframe['convergence'] = {'converged_index': 0, 'committed_to': options[1]}
+
+    print("PREPARED PERSONAL HISTORY FOR POPULATION MEMBER 1: ", dataframe['simulation'][1]['my_history'],
+          dataframe['simulation'][1]['partner_history'])
+    return
 
 def swap_committed(df, minority_size):
     if minority_size > 0:  

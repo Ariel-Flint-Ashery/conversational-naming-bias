@@ -28,6 +28,7 @@ network_type = config.network.network_type
 version = config.sim.version
 initial_set = config.params.initial_set
 continue_evolution = config.sim.continue_evolution
+crossing_p = config.params.crossover_probability
 #%%
 # load options
 if isinstance(options_set, str) == False:
@@ -60,15 +61,15 @@ def bias_runner():
                     mainfname = '.pkl'
                     # load a converged baseline
                     if initial == 'None':
-                        mainfname = f"data//spontaneous/{shorthand}_converged_baseline_ID_{options_id}_{rewards[0]}_{rewards[1]}_{m}mem_{config.network.network_type}_{N}ps_{temperature}tmp_BLANK_{config.sim.fill_blank}.pkl"
+                        mainfname = f"data/spontaneous/{shorthand}_converged_baseline_ID_{options_id}_{rewards[0]}_{rewards[1]}_{m}mem_{config.network.network_type}_{N}ps_{temperature}tmp_BLANK_{config.sim.fill_blank}_crossp{crossing_p}.pkl"
                     
                     elif config.sim.consensus_evolution==True:
                         prepared_memory = m
-                        mainfname = f"data/consensus_evolution/{shorthand}_evolved_from_{initial}_ID_{options_id}_{rewards[0]}_{rewards[1]}_{m}mem_{config.network.network_type}_{N}ps_{total_interactions}ints_{temperature}tmp_BLANK_{config.sim.fill_blank}.pkl"
+                        mainfname = f"data/consensus_evolution/{shorthand}_evolved_from_{initial}_ID_{options_id}_{rewards[0]}_{rewards[1]}_{m}mem_{config.network.network_type}_{N}ps_{total_interactions}ints_{temperature}tmp_BLANK_{config.sim.fill_blank}_crossp{crossing_p}.pkl"
 
                     else:
                         prepared_memory = 1
-                        mainfname = f"data/first_step_evolution/{shorthand}_evolved_from_{initial}_ID_{options_id}_{rewards[0]}_{rewards[1]}_{m}mem_{config.network.network_type}_{N}ps_{total_interactions}ints_{temperature}tmp_BLANK_{config.sim.fill_blank}.pkl"
+                        mainfname = f"data/first_step_evolution/{shorthand}_evolved_from_{initial}_ID_{options_id}_{rewards[0]}_{rewards[1]}_{m}mem_{config.network.network_type}_{N}ps_{total_interactions}ints_{temperature}tmp_BLANK_{config.sim.fill_blank}_crossp{crossing_p}.pkl"
                     
                     print(mainfname)
                     mainframe = ut.load_mainframe(mainfname)
@@ -85,6 +86,7 @@ def bias_runner():
                                 print(f"--- STARTING RUN {run} ---")
                                 print("---------- BASELINE CONVERGENCE ----------")
                                 df = ut.get_empty_population(fname=temp_fname)
+                            print(temp_fname)
                             sm.population(dataframe=df, run=run, memory_size=m, rewards=rewards, options=options, fname=temp_fname, topic = topic, initial = initial)
                         if initial != 'None':
                             if len(mainframe.keys())-1 > run:
