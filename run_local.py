@@ -117,7 +117,7 @@ def encode_decode_options(options):
     first_target_id_dict = {option: first_target_encoding[i] for i, option in enumerate(options)}
     return first_target_id_dict
 
-def get_probability_dict(options, prompt, first_target_id_dict, temperature = config.params.temperature, epsilon = 0.000001):
+def get_probability_dict(options, prompt, first_target_id_dict, temperature = config.params.temperature, epsilon=np.finfo(float).eps):
     
     # first, we need to generate the text!
     if config.model.chat_template_is_avail:
@@ -146,8 +146,9 @@ def get_probability_dict(options, prompt, first_target_id_dict, temperature = co
         logits = outputs.scores[0]
         probabilities = torch.log_softmax(logits, dim=-1)
         target_log_prob = probabilities[0, choice].item()
-        if np.exp(target_log_prob) < epsilon:
-            target_log_prob = -np.inf
+        # if np.exp(target_log_prob) < epsilon:
+        #     target_log_prob = -np.inf
+        target_log_prob = max(np.log(epsilon), target_log_prob)
         
         options_log_probs.append(target_log_prob)
 
