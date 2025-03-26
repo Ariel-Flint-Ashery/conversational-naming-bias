@@ -149,7 +149,7 @@ def encode_decode_options(options):
     first_target_id_dict = {option: first_target_phrase[i] for i, option in enumerate(options)}
     return first_target_id_dict
 
-def get_probability_dict(options, prompt, first_target_id_dict, temperature = config.params.temperature, epsilon = 0.000001):
+def get_probability_dict(options, prompt, first_target_id_dict, temperature = config.params.temperature, epsilon=np.finfo(float).eps):
     
     first_target_phrase = [first_target_id_dict[option] for option in options]
     response, outputs, token_outputs = API_hit(chat=prompt, options = options, first_target_phrase = first_target_phrase)
@@ -188,9 +188,9 @@ def get_probability_dict(options, prompt, first_target_id_dict, temperature = co
             winning_prob = response.logprobs.content[index_list[0]].top_logprobs[index].logprob
             #print(response.logprobs.content[index_list[0]].top_logprobs[index].token,  np.exp(winning_prob))
 
-            if np.exp(winning_prob) < epsilon:
-                winning_prob = -np.inf #np.log(epsilon)
-            probability_dict[selected_option] = winning_prob
+            # if np.exp(winning_prob) < epsilon:
+            #     winning_prob = -np.inf #np.log(epsilon)
+            probability_dict[selected_option] =  max(winning_prob, np.log(epsilon))
 
     # renormalize probability:
     options_log_probs = list(probability_dict.values())
