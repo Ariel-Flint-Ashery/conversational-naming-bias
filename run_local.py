@@ -43,26 +43,30 @@ flush()
 quantized = config.model.quantized
 # loading tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name, token=config.model.API_TOKEN)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+basepath = '/data_users1/sagar/conversational-naming-bias/'
 
 if not quantized:
     # full model
     print('Loading full model', flush=True)
-    model = AutoModelForCausalLM.from_pretrained(model_name, resume_download = True,token=config.model.API_TOKEN, cache_dir = '/mnt/shared_drive/llm_garage/cache/huggingface')#, local_files_only = True)
+    model = AutoModelForCausalLM.from_pretrained(model_name, resume_download = True,token=config.model.API_TOKEN, cache_dir = basepath+'cache')#, local_files_only = True)
     model = model.to('cuda')
     model.config.use_cache = False
 else:
     # quantized version
     print('Loading quantized model', flush=True)
     bnb_config = transformers.BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type='nf4', bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=bfloat16)
-    model = AutoModelForCausalLM.from_pretrained(model_name, resume_download = True, device_map='cuda:0', quantization_config=bnb_config, cache_dir = '/mnt/shared_drive/llm_garage/cache/huggingface')#, local_files_only = True)
+    model = AutoModelForCausalLM.from_pretrained(model_name, resume_download = True, device_map='cuda:0', quantization_config=bnb_config, cache_dir = basepath+'cache')#, local_files_only = True)
     model.config.use_cache = False
 
 def query(text, temperature = config.params.temperature, max_new_tokens = 6):
     if config.model.chat_template_is_avail:
-        inputs = tokenizer.apply_chat_template(text, return_tensors="pt", add_generation_prompt=True).to("cuda:0")
+        inputs = tokenizer.apply_chat_template(text, return_tensors="pt", add_generation_prompt=True, padding=True).to("cuda:0")
     else:
         #inputs = tokenizer(text, return_tensors = "pt").to("cuda:0")
-        inputs = tokenizer.encode(text, return_tensors = "pt").to("cuda:0")
+        inputs = tokenizer.encode(text, return_tensors = "pt", padding=True).to("cuda:0")
     #print(inputs)
     with torch.no_grad():
         if temperature == 0:
@@ -121,16 +125,47 @@ def get_probability_dict(options, prompt, first_target_id_dict, temperature = co
     
     # first, we need to generate the text!
     if config.model.chat_template_is_avail:
-        inputs = tokenizer.apply_chat_template(prompt, return_tensors="pt", add_generation_prompt=True).to("cuda:0")
+        if isinstance(prompt, str):
+            raise ValueError("Chat template is enabled, but prompt is a string. It must be a list of message dicts.")
+        prompt_str = tokenizer.apply_chat_template(
+            prompt, tokenize=False, add_generation_prompt=True
+        )
+        inputs = tokenizer(prompt_str, return_tensors="pt", padding=True).to("cuda:0")
+    
     else:
-        inputs = tokenizer.encode(prompt, return_tensors = "pt").to("cuda:0")
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True).to("cuda:0")
         #inputs = tokenizer(prompt, return_tensors = "pt").to("cuda:0") #returns different inputs structure, , where model input is inputs['input_ids']
+        
+    inputs["attention_mask"] = inputs["attention_mask"] 
 
     with torch.no_grad():
         if temperature == 0:
-            outputs = model.generate(inputs, max_new_tokens = 5,output_scores=True, return_dict_in_generate=True, output_hidden_states=True, do_sample = False, pad_token_id=tokenizer.eos_token_id)
+            outputs = model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=5,
+                output_scores=True,
+                return_dict_in_generate=True,
+                output_hidden_states=True,
+                do_sample=False,
+                temperature=temperature,
+                top_k=len(options),
+                pad_token_id=tokenizer.pad_token_id  
+            )
         else:
-            outputs = model.generate(inputs, max_new_tokens = 5,output_scores=True, return_dict_in_generate=True, output_hidden_states=True, do_sample = True, temperature = temperature, top_k = len(options), pad_token_id=tokenizer.eos_token_id)
+            outputs = model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=5,
+                output_scores=True,
+                return_dict_in_generate=True,
+                output_hidden_states=True,
+                do_sample=True,
+                temperature=temperature,
+                top_k=len(options),
+                pad_token_id=tokenizer.pad_token_id 
+            )
+
     
     #generated_tokens = outputs.sequences[0]
     #generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
@@ -144,6 +179,7 @@ def get_probability_dict(options, prompt, first_target_id_dict, temperature = co
     for choice in first_target_encoding:
 
         logits = outputs.scores[0]
+        print(logits)
         probabilities = torch.log_softmax(logits, dim=-1)
         target_log_prob = probabilities[0, choice].item()
         if np.exp(target_log_prob) < epsilon:

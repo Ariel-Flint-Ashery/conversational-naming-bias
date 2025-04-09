@@ -4,6 +4,7 @@ from munch import munchify
 with open("config.yaml", "r") as f:
     doc = yaml.safe_load(f)
 config = munchify(doc)
+is_gemma = config.model.is_gemma
 
 def get_rules(rewards, options, topic=None):
   incorrect, correct = rewards
@@ -72,9 +73,12 @@ def get_prompt(player, memory_size, rules, question = "Answer saying which actio
 
   assistant_prompt = {"role": "assistant", "content": assistant_text}
   if config.model.sys_prompt_is_avail:
-    system_prompt = {'role': "system", "content": get_system_prompt(player, memory_size, rules)}
-    user_prompt = {"role": "user", "content": question}
-    return [system_prompt, user_prompt, assistant_prompt]
+    if not is_gemma:
+      system_prompt = {'role': "system", "content": get_system_prompt(player, memory_size, rules)}
+      user_prompt = {"role": "user", "content": question}
+      return [system_prompt, user_prompt, assistant_prompt]
+    else:
+      return [{"role": "user", "content":  """\n """.join([get_system_prompt(player, memory_size, rules), question, assistant_text])}]
   else:
     return [{"role": "user", "content":  """\n """.join([get_system_prompt(player, memory_size, rules), question, assistant_text])}]
 
